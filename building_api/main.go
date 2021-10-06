@@ -103,6 +103,7 @@ func (w *webPlusSH) post(c echo.Context) error {
 	}
 	data := request.Data
 	password := request.Password
+	println(password)
 	send_data := encrypt(data, password)
 	cid, err := w.sh.Add(bytes.NewReader(send_data))
 	check(err)
