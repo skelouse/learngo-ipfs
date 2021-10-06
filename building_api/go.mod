@@ -2,7 +2,10 @@ module taubyte.test/ipfs-api
 
 go 1.17
 
-require github.com/labstack/echo/v4 v4.6.1
+require (
+	github.com/ipfs/go-ipfs-api v0.2.0
+	github.com/labstack/echo/v4 v4.6.1
+)
 
 require (
 	github.com/btcsuite/btcd v0.20.1-beta // indirect
@@ -10,7 +13,6 @@ require (
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/ipfs/go-cid v0.0.7 // indirect
-	github.com/ipfs/go-ipfs-api v0.2.0 // indirect
 	github.com/ipfs/go-ipfs-files v0.0.8 // indirect
 	github.com/labstack/gommon v0.3.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.0.2 // indirect

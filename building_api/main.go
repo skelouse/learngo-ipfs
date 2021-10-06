@@ -21,6 +21,15 @@ type webPlusSH struct {
 	sh  *shell.Shell
 }
 
+type addRequest struct {
+	Data     string `json:"data" form:"data" query:"data"`
+	Password string `json:"password" form:"password" query:"password"`
+}
+
+type getRequest struct {
+	Password string `json:"password" form:"password" query:"password"`
+}
+
 func check(e error) {
 	if e != nil {
 		println("Uhh ohh")
@@ -74,20 +83,27 @@ func main() {
 // GET Handler
 func (w *webPlusSH) get(c echo.Context) error {
 	cid := c.Param("CID")
-	password := c.Param("password")
 	resp := verifyCID(cid)
 	if resp != "" {
 		return c.String(http.StatusConflict, resp)
 	}
+	request := new(getRequest)
+	if err := c.Bind(request); err != nil {
+		return err
+	}
 	w.sh.Get(cid, OUTFILE)
-	data := decrypt(OUTFILE, password)
+	data := decrypt(OUTFILE, request.Password)
 	return c.String(http.StatusOK, data)
 }
 
 // POST Handler
 func (w *webPlusSH) post(c echo.Context) error {
-	password := c.Param("password")
-	data := c.Param("data")
+	request := new(addRequest)
+	if err := c.Bind(request); err != nil {
+		return err
+	}
+	data := request.Data
+	password := request.Password
 	send_data := encrypt(data, password)
 	cid, err := w.sh.Add(strings.NewReader(send_data))
 	check(err)
@@ -97,10 +113,10 @@ func (w *webPlusSH) post(c echo.Context) error {
 }
 
 func encrypt(data string, password string) string {
-	plaintext, err := ioutil.ReadFile(data)
-	check(err)
+	key_empty := make([]byte, 32)
+	copy(key_empty[:len(password)], []byte(password))
 
-	block, err := aes.NewCipher([]byte(password))
+	block, err := aes.NewCipher(key_empty)
 	check(err)
 
 	gcm, err := cipher.NewGCM(block)
@@ -110,33 +126,36 @@ func encrypt(data string, password string) string {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		log.Fatal(err)
 	}
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-	encoded := base64.StdEncoding.EncodeToString(ciphertext)
+	ciphertext := gcm.Seal(nonce, nonce, []byte(data), nil)
+	encoded := base64.StdEncoding.EncodeToString([]byte(ciphertext))
 
 	return string(encoded)
 
 }
 
 func decrypt(outfile string, password string) string {
+	key_empty := make([]byte, 32)
+	copy(key_empty[:len(password)], []byte(password))
 
 	ciphertext, err := ioutil.ReadFile(outfile)
 	check(err)
 
-	block, err := aes.NewCipher([]byte(password))
+	decoded_text, err := base64.StdEncoding.DecodeString(string(ciphertext))
+	check(err)
+	// println(string(ciphertext))  // Shows the encrypted text
+
+	block, err := aes.NewCipher(key_empty)
 	check(err)
 
 	gcm, err := cipher.NewGCM(block)
 	check(err)
 
-	nonce := ciphertext[:gcm.NonceSize()]
-	ciphertext = ciphertext[gcm.NonceSize():]
+	nonce := decoded_text[:gcm.NonceSize()]
+	ciphertext = decoded_text[gcm.NonceSize():]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	check(err)
-	println(plaintext)
-	decoded, err := base64.StdEncoding.DecodeString(string(plaintext))
-	check(err)
 
-	return string(decoded)
+	return string(plaintext)
 
 }
 
