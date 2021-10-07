@@ -20,11 +20,6 @@ type webPlusSH struct {
 	sh  *shell.Shell
 }
 
-type addRequest struct {
-	Data     string `json:"data" form:"data" query:"data"`
-	Password string `json:"password" form:"password" query:"password"`
-}
-
 type getRequest struct {
 	Password string `json:"password" form:"password" query:"password"`
 }
@@ -59,6 +54,9 @@ func verifyCID(CID string) string {
 	}
 	return resp
 }
+func allowOrigin(origin string) (bool, error) {
+	return true, nil
+}
 
 func main() {
 
@@ -73,6 +71,11 @@ func main() {
 
 	// Routes
 	web.GET("/get/:CID", engine.get, middleware.RemoveTrailingSlash())
+	web.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOriginFunc: allowOrigin,
+		AllowMethods:    []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
+		AllowHeaders:    []string{echo.MIMEMultipartForm},
+	}))
 	web.POST("/add", engine.post)
 
 	// Start server
@@ -90,29 +93,27 @@ func (w *webPlusSH) get(c echo.Context) error {
 	if err := c.Bind(request); err != nil {
 		return echo.NewHTTPError(http.StatusConflict, err)
 	}
+
 	w.sh.Get(cid, OUTFILE)
 	data := decrypt(OUTFILE, request.Password)
-	return echo.NewHTTPError(http.StatusOK, data)
+	err := ioutil.WriteFile("./temp.txt", data, 0644)
+	check(err)
+	return c.File("./temp.txt")
 }
 
 // POST Handler
 func (w *webPlusSH) post(c echo.Context) error {
-	request := new(addRequest)
-	if err := c.Bind(request); err != nil {
-		return err
-	}
-	data := request.Data
-	password := request.Password
-	println(password)
-	send_data := encrypt(data, password)
-	cid, err := w.sh.Add(bytes.NewReader(send_data))
+	file := c.FormValue("file")
+	password := c.FormValue("password")
+	send_data := encrypt([]byte(file), password)
+	reader := bytes.NewReader(send_data)
+	cid, err := w.sh.Add(reader)
 	check(err)
 
 	return c.String(http.StatusOK, cid)
-
 }
 
-func encrypt(data string, password string) []byte {
+func encrypt(data []byte, password string) []byte {
 	key_empty := make([]byte, 32)
 	copy(key_empty[:len(password)], []byte(password))
 
@@ -126,7 +127,7 @@ func encrypt(data string, password string) []byte {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		log.Fatal(err)
 	}
-	ciphertext := gcm.Seal(nonce, nonce, []byte(data), nil)
+	ciphertext := gcm.Seal(nonce, nonce, data, nil)
 
 	return ciphertext
 
@@ -156,15 +157,3 @@ func decrypt(outfile string, password string) []byte {
 	return plaintext
 
 }
-
-// // NewContext returns a Context instance.
-// func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) Context {
-// 	return &context{
-// 		request:  r,
-// 		response: NewResponse(w, e),
-// 		store:    make(Map),
-// 		echo:     e,
-// 		pvalues:  make([]string, *e.maxParam),
-// 		handler:  NotFoundHandler,
-// 	}
-// }

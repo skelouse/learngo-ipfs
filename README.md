@@ -13,9 +13,9 @@ $ cd building_api
 $ go run main.go
 ```
 
-- Not started:
 ```
 $ cd ..
 $ cd frontend_for_api
-$ go run main.go
+$ npm run serve -- --port xxxx
+ - default port is the same as the ipfs daemon
 ```
